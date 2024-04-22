@@ -21,7 +21,7 @@
     <groupId>net.adamcin</groupId>
     <artifactId>streamsupport</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <name>Stream Support</name>
     <description>Small library of reusable types and functions supporting native Java Streams.</description>
@@ -33,7 +33,7 @@
         <url>https://github.com/adamcin/streamsupport</url>
         <developerConnection>scm:git:git@github.com:adamcin/streamsupport.git</developerConnection>
         <connection>scm:git://github.com/adamcin/streamsupport.git</connection>
-        <tag>v1.0.0</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
