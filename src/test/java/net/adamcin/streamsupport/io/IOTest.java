@@ -23,8 +23,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class IOTest {
 
     @Test
-    public void testMap() {
+    void map() {
         IO<Integer> io = IO.unit(42);
         assertEquals( "42", io.map(Object::toString).get(), "map works");
+    }
+
+    @Test
+    void flatMap() {
+        IO<Integer> io = IO.unit(42);
+        assertEquals( "42", io.flatMap(value -> IO.unit(value.toString())).get(), "map works");
+    }
+
+    @Test
+    void add() {
+        IO<Integer> io = IO.unit(42).add(IO.unit(443));
+        assertEquals(443, io.get());
     }
 }

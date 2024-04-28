@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,7 +58,8 @@ public abstract class Result<V> implements Serializable {
      * @param <W> the result type.
      * @return a mapped result
      */
-    public abstract <W> @NotNull Result<W> map(final @NotNull Function<? super V, W> f);
+    @NotNull
+    public abstract <W> Result<W> map(@NotNull Function<? super V, W> f);
 
     /**
      * Flat-map it.
@@ -66,11 +68,12 @@ public abstract class Result<V> implements Serializable {
      * @param <W> the result type
      * @return the flat mapped result
      */
-    public abstract <W> @NotNull Result<W> flatMap(final @NotNull Function<? super V, Result<W>> f);
+    @NotNull
+    public abstract <W> Result<W> flatMap(@NotNull Function<? super V, Result<W>> f);
 
-    public abstract V getOrDefault(final V defaultValue);
+    public abstract V getOrDefault(V defaultValue);
 
-    public abstract V getOrElse(final @NotNull Supplier<? extends V> defaultValue);
+    public abstract V getOrElse(@NotNull Supplier<? extends V> defaultValue);
 
     /**
      * Get the value if successful or throw a runtime exception.
@@ -78,6 +81,7 @@ public abstract class Result<V> implements Serializable {
      * @return the wrapped value if successful
      * @throws java.lang.IllegalStateException if this result is a failure
      */
+    @NotNull
     public abstract V getOrThrow();
 
     /**
@@ -88,14 +92,18 @@ public abstract class Result<V> implements Serializable {
      * @param <E>       the error type parameter
      * @return the wrapped value if successful
      * @throws E                               if a matching cause is found
-     * @throws java.lang.IllegalStateException if this result is a failure
+     * @throws java.lang.IllegalStateException if this result is a failure but {@code errorType} does not match a cause
      */
-    public abstract <E extends Exception> V getOrThrow(final @NotNull Class<E> errorType) throws E;
+    @NotNull
+    public abstract <E extends Exception> V getOrThrow(@NotNull Class<E> errorType) throws E;
 
-    public abstract Result<V> orElse(final @NotNull Supplier<Result<V>> defaultValue);
+    @NotNull
+    public abstract Result<V> orElse(@NotNull Supplier<Result<V>> defaultValue);
 
+    @NotNull
     public abstract Stream<V> stream();
 
+    @NotNull
     public abstract Result<V> teeLogError();
 
     public final boolean isSuccess() {
@@ -107,6 +115,7 @@ public abstract class Result<V> implements Serializable {
     }
 
     @SuppressWarnings("WeakerAccess")
+    @NotNull
     public final Optional<V> toOptional() {
         return stream().findFirst();
     }
@@ -117,6 +126,7 @@ public abstract class Result<V> implements Serializable {
      *
      * @return the top level runtime exception or empty if success
      */
+    @NotNull
     public abstract Optional<RuntimeException> getError();
 
     /**
@@ -126,7 +136,8 @@ public abstract class Result<V> implements Serializable {
      * @return some matching throwable or empty
      */
     @SuppressWarnings("WeakerAccess")
-    public final Optional<Throwable> findCause(final @NotNull Predicate<? super Throwable> predicate) {
+    @NotNull
+    public final Optional<Throwable> findCause(@NotNull Predicate<? super Throwable> predicate) {
         return getError().map(Result::causing).orElse(Stream.empty()).filter(predicate).findFirst();
     }
 
@@ -140,7 +151,8 @@ public abstract class Result<V> implements Serializable {
      * @return an Optional error
      */
     @SuppressWarnings("WeakerAccess")
-    public final <E extends Throwable> Optional<E> findCause(final @NotNull Class<E> errorType) {
+    @NotNull
+    public final <E extends Throwable> Optional<E> findCause(@NotNull Class<E> errorType) {
         return findCause(errorType::isInstance).map(errorType::cast);
     }
 
@@ -152,7 +164,7 @@ public abstract class Result<V> implements Serializable {
      * @param <E>       the particular Exception type parameter
      * @throws E if any cause in the chain is an instance of the provided errorType, that cause is rethrown
      */
-    public final <E extends Exception> void throwCause(final @NotNull Class<E> errorType) throws E {
+    public final <E extends Exception> void throwCause(@NotNull Class<E> errorType) throws E {
         Optional<E> cause = findCause(errorType);
         if (cause.isPresent()) {
             throw cause.get();
@@ -166,8 +178,8 @@ public abstract class Result<V> implements Serializable {
      * @return a stream of throwable causes
      */
     @SuppressWarnings("WeakerAccess")
-    static Stream<Throwable> causing(final @NotNull Throwable caused) {
-        return Stream.concat(Optional.of(caused).map(Stream::of).orElse(Stream.empty()),
+    static Stream<Throwable> causing(@NotNull Throwable caused) {
+        return Stream.concat(Optional.of(caused).stream(),
                 Optional.ofNullable(caused.getCause()).map(Result::causing).orElse(Stream.empty()));
     }
 
@@ -176,91 +188,100 @@ public abstract class Result<V> implements Serializable {
      *
      * @param consumer the consumer
      */
-    public abstract void forEach(final @NotNull Consumer<? super V> consumer);
+    public abstract void forEach(@NotNull Consumer<? super V> consumer);
+
+    /**
+     * Wrapping runtime error type for exceptions rethrown by {@link net.adamcin.streamsupport.Result#getOrThrow()}.
+     */
+    @SuppressWarnings("WeakerAccess")
+    static final class RethrownFailureException extends IllegalStateException {
+        private RethrownFailureException(@NotNull Result.Failure<?> failedResult) {
+            super(failedResult.toString(), failedResult.exception);
+        }
+    }
 
     private static final class Failure<V> extends Result<V> {
         private final RuntimeException exception;
 
-        private Failure(final String message) {
+        private Failure(String message) {
             super();
             this.exception = new IllegalStateException(message);
         }
 
-        private Failure(final @NotNull RuntimeException e) {
+        private Failure(@NotNull RuntimeException e) {
             this.exception = e;
         }
 
-        private Failure(final @NotNull Exception e) {
+        private Failure(@NotNull Exception e) {
             this.exception = new IllegalStateException(e.getMessage(), e);
         }
 
-        private Failure(final @NotNull String message, final @NotNull Exception e) {
+        private Failure(@NotNull String message, @NotNull Exception e) {
             this.exception = new IllegalStateException(message, e);
         }
 
         @Override
-        public @NotNull <W> Result<W> map(final @NotNull Function<? super V, W> f) {
+        @NotNull
+        public <W> Result<W> map(@NotNull Function<? super V, W> f) {
             return new Failure<>(this.exception);
         }
 
         @Override
-        public @NotNull <W> Result<W> flatMap(final @NotNull Function<? super V, Result<W>> f) {
+        @NotNull
+        public <W> Result<W> flatMap(@NotNull Function<? super V, Result<W>> f) {
             return new Failure<>(this.exception);
         }
 
         @Override
-        public V getOrDefault(final V defaultValue) {
-            logSupression();
+        public V getOrDefault(V defaultValue) {
+            logSuppression();
             return defaultValue;
         }
 
         @Override
-        public V getOrElse(final @NotNull Supplier<? extends V> defaultValue) {
-            logSupression();
+        public V getOrElse(@NotNull Supplier<? extends V> defaultValue) {
+            logSuppression();
             return defaultValue.get();
         }
 
         @Override
-        public V getOrThrow() {
-            throw exception;
+        public @NotNull V getOrThrow() {
+            throw new RethrownFailureException(this);
         }
 
         @Override
-        public <E extends Exception> V getOrThrow(@NotNull Class<E> errorType) throws E {
+        public <E extends Exception> @NotNull V getOrThrow(@NotNull Class<E> errorType) throws E {
             throwCause(errorType);
-            throw exception;
+            return getOrThrow();
         }
 
         @Override
-        public Result<V> orElse(final @NotNull Supplier<Result<V>> defaultValue) {
-            logSupression();
-            return defaultValue.get();
+        @NotNull
+        public Result<V> orElse(@NotNull Supplier<Result<V>> defaultValue) {
+            logSuppression();
+            return Objects.requireNonNull(defaultValue.get());
         }
 
         @Override
-        public void forEach(final @NotNull Consumer<? super V> consumer) {
-            logSupression();
+        public void forEach(@NotNull Consumer<? super V> consumer) {
+            logSuppression();
         }
 
         @Override
+        @NotNull
         public Stream<V> stream() {
-            logSupression();
+            logSuppression();
             return Stream.empty();
         }
 
-
         @Override
+        @NotNull
         public Optional<RuntimeException> getError() {
             return Optional.of(this.exception);
         }
 
-
         @Override
-        public String toString() {
-            return String.format("Failure(%s)", exception.getMessage());
-        }
-
-        @Override
+        @NotNull
         public Result<V> teeLogError() {
             LOGGER.debug("failure [stacktrace visible in TRACE logging]: {}", this);
             logTrace();
@@ -271,9 +292,27 @@ public abstract class Result<V> implements Serializable {
             LOGGER.trace("thrown:", this.exception);
         }
 
-        private void logSupression() {
+        private void logSuppression() {
             LOGGER.debug("failure (suppressed) [stacktrace visible in TRACE logging]: {}", this);
             logTrace();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Failure(%s)", exception.getMessage());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Failure<?> failure = (Failure<?>) o;
+            return Objects.equals(exception, failure.exception);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(exception);
         }
     }
 
@@ -286,12 +325,14 @@ public abstract class Result<V> implements Serializable {
         }
 
         @Override
-        public @NotNull <W> Result<W> map(final @NotNull Function<? super V, W> f) {
+        @NotNull
+        public <W> Result<W> map(final @NotNull Function<? super V, W> f) {
             return new Success<>(f.apply(value));
         }
 
         @Override
-        public @NotNull <W> Result<W> flatMap(final @NotNull Function<? super V, Result<W>> f) {
+        @NotNull
+        public <W> Result<W> flatMap(final @NotNull Function<? super V, Result<W>> f) {
             return f.apply(value);
         }
 
@@ -306,63 +347,87 @@ public abstract class Result<V> implements Serializable {
         }
 
         @Override
+        @NotNull
         public V getOrThrow() {
             return value;
         }
 
         @Override
+        @NotNull
         public <E extends Exception> V getOrThrow(@NotNull Class<E> errorType) throws E {
             return value;
         }
 
         @Override
-        public Result<V> orElse(final @NotNull Supplier<Result<V>> defaultValue) {
+        @NotNull
+        public Result<V> orElse(@NotNull Supplier<Result<V>> defaultValue) {
             return this;
         }
 
         @Override
-        public void forEach(final @NotNull Consumer<? super V> consumer) {
+        public void forEach(@NotNull Consumer<? super V> consumer) {
             consumer.accept(value);
         }
 
         @Override
+        @NotNull
         public Stream<V> stream() {
             return value != null ? Stream.of(value) : Stream.empty();
         }
 
         @Override
+        @NotNull
         public Result<V> teeLogError() {
             return this;
         }
 
         @Override
+        @NotNull
         public Optional<RuntimeException> getError() {
             return Optional.empty();
         }
 
         @Override
         public String toString() {
-            return String.format("Success(%s)", String.valueOf(value));
+            return String.format("Success(%s)", value);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Success<?> success = (Success<?>) o;
+            return Objects.equals(value, success.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
         }
     }
 
-    public static <V> Result<V> failure(final String message) {
+    @NotNull
+    public static <V> Result<V> failure(String message) {
         return new Failure<>(message);
     }
 
-    public static <V> Result<V> failure(final @NotNull Exception e) {
+    @NotNull
+    public static <V> Result<V> failure(@NotNull Exception e) {
         return new Failure<>(e);
     }
 
-    public static <V> Result<V> failure(final @NotNull String message, final @NotNull Exception e) {
+    @NotNull
+    public static <V> Result<V> failure(@NotNull String message, @NotNull Exception e) {
         return new Failure<>(message, e);
     }
 
-    public static <V> Result<V> failure(final @NotNull RuntimeException e) {
+    @NotNull
+    public static <V> Result<V> failure(@NotNull RuntimeException e) {
         return new Failure<>(e);
     }
 
-    public static <V> Result<V> success(final V value) {
+    @NotNull
+    public static <V> Result<V> success(V value) {
         return new Success<>(value);
     }
 
@@ -377,15 +442,15 @@ public abstract class Result<V> implements Serializable {
         final AtomicReference<Result<A>> latch;
         final BiConsumer<A, V> accumulator;
 
-        Builder(final @NotNull Result<A> initial,
-                final @NotNull BiConsumer<A, V> accumulator) {
+        Builder(@NotNull Result<A> initial,
+                @NotNull BiConsumer<A, V> accumulator) {
             this.resultAcc = initial;
             this.latch = new AtomicReference<>(resultAcc);
             this.accumulator = accumulator;
         }
 
         @Override
-        public void accept(final Result<V> valueResult) {
+        public void accept(Result<V> valueResult) {
             latch.accumulateAndGet(resultAcc,
                     (fromLatch, fromArg) ->
                             fromLatch.flatMap(state ->
@@ -414,8 +479,9 @@ public abstract class Result<V> implements Serializable {
      * @param <A>       the collector's accumulator type
      * @return if all successful, a Result of a Collection; otherwise, the first encountered failure
      */
+    @NotNull
     public static <V, R, A> Collector<Result<V>, Builder<V, A>, Result<R>>
-    tryCollect(final @NotNull Collector<V, A, R> collector) {
+    tryCollect(@NotNull Collector<V, A, R> collector) {
 
         final Supplier<Builder<V, A>>
                 // first arg
@@ -442,22 +508,22 @@ public abstract class Result<V> implements Serializable {
         final Collector.Characteristics[]
                 // fifth arg
                 characteristics = collector.characteristics().stream()
-                // remove IDENTITY_FINISH and CONCURRENT, but pass thru the other characteristics.
-                // TODO implement safety for concurrency ?
-                .filter(Fun.inSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH,
-                        Collector.Characteristics.CONCURRENT)).negate())
+                // remove IDENTITY_FINISH, but pass thru the other characteristics.
+                .filter(Fun.inSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH)).negate())
                 .toArray(Collector.Characteristics[]::new);
 
         return Collector.of(supplier, accumulator, combiner, finisher, characteristics);
     }
 
+    @NotNull
     public static <V> Collector<Result<V>, Stream.Builder<Result<V>>, Stream<Result<V>>>
     logAndRestream() {
         return new RestreamLogCollector<>(LOGGER, "");
     }
 
+    @NotNull
     public static <V> Collector<Result<V>, Stream.Builder<Result<V>>, Stream<Result<V>>>
-    logAndRestream(final @NotNull String message) {
+    logAndRestream(@NotNull String message) {
         return new RestreamLogCollector<>(LOGGER, ": " + message);
     }
 
@@ -466,7 +532,7 @@ public abstract class Result<V> implements Serializable {
         final Supplier<Stream.Builder<Result<T>>> supplier;
         final BiConsumer<Stream.Builder<Result<T>>, Result<T>> accum;
 
-        RestreamLogCollector(final @NotNull Logger logger, final @NotNull String collectorMessage) {
+        RestreamLogCollector(@NotNull Logger logger, @NotNull String collectorMessage) {
             if (logger.isDebugEnabled()) {
                 final Throwable creation = new Throwable();
                 this.supplier = () -> {

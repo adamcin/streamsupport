@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -41,6 +42,7 @@ public final class Both<T> implements Serializable {
      * @param <T>   the type common to both values
      * @return both of the values
      */
+    @NotNull
     public static <T> Both<T> of(@NotNull T left, @NotNull T right) {
         return new Both<>(left, right);
     }
@@ -53,19 +55,21 @@ public final class Both<T> implements Serializable {
      * @param <T>   the type common to both values
      * @return both of the Optional values
      */
+    @NotNull
     public static <T> Both<Optional<T>> ofNullables(@Nullable T left, @Nullable T right) {
-        return new Both<>(Optional.ofNullable(left), Optional.ofNullable(right));
+        return Both.of(Optional.ofNullable(left), Optional.ofNullable(right));
     }
 
     /**
      * Unwrap Both of the input Result values into a Result of Both of the output values.
      *
      * @param results a pair of Results
-     * @param <U>     The value type
+     * @param <V>     The value type
      * @param <R>     the Result value type
      * @return a Result of the pair of values
      */
-    public static <U, R extends Result<U>> Result<Both<U>> ofResults(@NotNull Both<R> results) {
+    @NotNull
+    public static <V, R extends Result<V>> Result<Both<V>> ofResults(@NotNull Both<R> results) {
         return results.left().flatMap(leftValue ->
                 results.right().map(rightValue -> Both.of(leftValue, rightValue)));
     }
@@ -76,6 +80,7 @@ public final class Both<T> implements Serializable {
      * @param <T> the inferred type for the optionals
      * @return an empty Both
      */
+    @NotNull
     public static <T> Both<Optional<T>> empty() {
         return Both.of(Optional.empty(), Optional.empty());
     }
@@ -104,33 +109,48 @@ public final class Both<T> implements Serializable {
      * Defined to ensure a distinguishing stack element indicating that a throwable originated on the left.
      *
      * @param f   the function to apply
-     * @param <U> the result type
+     * @param <V> the result type
      * @return the result value
      */
-    private <U> U applyLeft(final @NotNull Function<? super T, U> f) {
-        return f.apply(leftValue);
+    @NotNull
+    private <V> V applyLeft(@NotNull Function<? super T, V> f) {
+        return Objects.requireNonNull(f.apply(leftValue));
     }
 
     /**
      * Defined to ensure a distinguishing stack element indicating that a throwable originated on the right.
      *
      * @param f   the function to apply
-     * @param <U> the result type
+     * @param <V> the result type
      * @return the result value
      */
-    private <U> U applyRight(final @NotNull Function<? super T, U> f) {
-        return f.apply(rightValue);
+    @NotNull
+    private <V> V applyRight(@NotNull Function<? super T, V> f) {
+        return Objects.requireNonNull(f.apply(rightValue));
     }
 
     /**
-     * Apply the provided function to both values.
+     * Apply the provided function to both values and return a Both of them.
      *
      * @param f   the mapping function
-     * @param <U> the result type
+     * @param <V> the result type
      * @return a new {@link net.adamcin.streamsupport.Both} with mapped left and right values
      */
-    public @NotNull <U> Both<U> map(final @NotNull Function<? super T, U> f) {
+    @NotNull
+    public <V> Both<V> map(@NotNull Function<? super T, V> f) {
         return Both.of(applyLeft(f), applyRight(f));
+    }
+
+    /**
+     * Apply the provided BiFunction to both values, and return the result Both.
+     *
+     * @param f   the mapping BiFunction
+     * @param <V> the result type
+     * @return a Both resulting from the provided BiFunction
+     */
+    @NotNull
+    public <V> Both<V> flatMap(@NotNull BiFunction<? super T, ? super T, Both<V>> f) {
+        return Objects.requireNonNull(f.apply(leftValue, rightValue));
     }
 
     /**
@@ -138,22 +158,24 @@ public final class Both<T> implements Serializable {
      * in the {@link Both} that is returned.
      *
      * @param f   the mapping function
-     * @param <U> the result type
+     * @param <V> the result type
      * @return a new {@link net.adamcin.streamsupport.Both} with mapped left and right values
      */
-    public @NotNull <U> Both<Optional<U>> mapOptional(final @NotNull Function<? super T, U> f) {
-        return Both.of(applyLeft(Fun.compose1(f, Optional::ofNullable)),
-                applyRight(Fun.compose1(f, Optional::ofNullable)));
+    @NotNull
+    public <V> Both<Optional<V>> mapOptional(@NotNull Function<? super T, V> f) {
+        final Function<? super T, Optional<V>> fOptional = Fun.compose1(f, Optional::ofNullable);
+        return Both.of(applyLeft(fOptional), applyRight(fOptional));
     }
 
     /**
      * Apply the provided throwing function to both values.
      *
      * @param f   the mapping function
-     * @param <U> the result type
+     * @param <V> the result type
      * @return a new {@link net.adamcin.streamsupport.Both} with mapped left and right values
      */
-    public @NotNull <U> Both<Result<U>> mapResult(final @NotNull ThrowingFunction<? super T, U> f) {
+    @NotNull
+    public <V> Both<Result<V>> mapResult(@NotNull ThrowingFunction<? super T, V> f) {
         return map(Fun.result1(f));
     }
 
@@ -161,11 +183,12 @@ public final class Both<T> implements Serializable {
      * Apply the provided BiFunction to both values as a pair.
      *
      * @param f   the mapping function
-     * @param <U> the result type
+     * @param <V> the result type
      * @return the result of applying {@code f} over the left and right values
      */
-    public @NotNull <U> U applyBoth(final @NotNull BiFunction<? super T, ? super T, U> f) {
-        return f.apply(leftValue, rightValue);
+    @NotNull
+    public <V> V applyBoth(@NotNull BiFunction<? super T, ? super T, V> f) {
+        return Objects.requireNonNull(f.apply(leftValue, rightValue));
     }
 
     /**
@@ -173,7 +196,7 @@ public final class Both<T> implements Serializable {
      *
      * @param f the consuming function
      */
-    public void onBoth(final @NotNull BiConsumer<? super T, ? super T> f) {
+    public void onBoth(@NotNull BiConsumer<? super T, ? super T> f) {
         f.accept(leftValue, rightValue);
     }
 
@@ -183,8 +206,38 @@ public final class Both<T> implements Serializable {
      * @param f the testing BiPredicate
      * @return the result of testing both values as a pair
      */
-    public boolean testBoth(final @NotNull BiPredicate<? super T, ? super T> f) {
+    public boolean testBoth(@NotNull BiPredicate<? super T, ? super T> f) {
         return f.test(leftValue, rightValue);
+    }
+
+    /**
+     * Combine the values of Both with the respective values of another Both, using the provided zipper function.
+     *
+     * @param that   the other Both of type {@code U}
+     * @param zipper a {@link java.util.function.BiFunction} combining this type and that type to produce a third type
+     * @param <U>    the other {@code Both}'s type
+     * @param <V>    the inferred output type
+     * @return Both of a third type {@code V}
+     * @see #zip(Both) for example where {@code V} is {@code Map.Entry[T, U]}
+     */
+    @NotNull
+    public <U, V> Both<V> zipWith(@NotNull Both<U> that,
+                                  @NotNull BiFunction<? super T, ? super U, ? extends V> zipper) {
+        return Both.of(zipper.apply(leftValue, that.leftValue), zipper.apply(rightValue, that.rightValue));
+    }
+
+    /**
+     * Combine the values of Both with the respective values of another Both, producing a Both containing a {@link Map.Entry}
+     * whose key type is {@code this} type and whose value type is {@code that}'s type.
+     *
+     * @param that the other Both of type {@code U}
+     * @param <U>  the other {@code Both}'s type
+     * @return a Both of the resulting  Map Entries
+     * @see #zipWith(Both, java.util.function.BiFunction)
+     */
+    @NotNull
+    public <U> Both<Map.Entry<T, U>> zip(@NotNull Both<U> that) {
+        return zipWith(that, Fun::toEntry);
     }
 
     /**
@@ -193,7 +246,8 @@ public final class Both<T> implements Serializable {
      *
      * @return the left and right values as an entry
      */
-    public @NotNull Map.Entry<T, T> entry() {
+    @NotNull
+    public Map.Entry<T, T> entry() {
         return Fun.toEntry(leftValue, rightValue);
     }
 
@@ -202,7 +256,8 @@ public final class Both<T> implements Serializable {
      *
      * @return the values as a {@link java.util.stream.Stream}.
      */
-    public @NotNull Stream<T> stream() {
+    @NotNull
+    public Stream<T> stream() {
         return Stream.concat(Stream.ofNullable(leftValue), Stream.ofNullable(rightValue));
     }
 
@@ -211,8 +266,26 @@ public final class Both<T> implements Serializable {
      *
      * @return a new {@link net.adamcin.streamsupport.Both} with left and right values swapped
      */
-    public @NotNull Both<T> swap() {
+    @NotNull
+    public Both<T> swap() {
         return Both.of(rightValue, leftValue);
     }
 
+    @Override
+    public String toString() {
+        return String.format("Both(%s, %s)", leftValue, rightValue);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Both<?> both = (Both<?>) o;
+        return Objects.equals(leftValue, both.leftValue) && Objects.equals(rightValue, both.rightValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(leftValue, rightValue);
+    }
 }

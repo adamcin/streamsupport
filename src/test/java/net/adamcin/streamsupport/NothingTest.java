@@ -18,10 +18,12 @@ package net.adamcin.streamsupport;
 
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Constructor;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,5 +53,17 @@ public class NothingTest {
     @Test
     public void testCombine() {
         assertSame(Nothing.instance, Nothing.instance.combine(Nothing.instance), "combine Nothing to produce Nothing");
+    }
+
+    @Test
+    void equalsHashCodeToString() throws Exception {
+        Nothing nothing = Nothing.instance;
+        assertEquals(Nothing.NAME, nothing.toString());
+        assertEquals(Nothing.NAME.hashCode(), nothing.hashCode());
+        Constructor<Nothing> factory = Nothing.class.getDeclaredConstructor();
+        factory.setAccessible(true);
+        Nothing magicNothing = factory.newInstance();
+        assertEquals(nothing, magicNothing);
+
     }
 }

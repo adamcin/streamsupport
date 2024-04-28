@@ -19,8 +19,10 @@ package net.adamcin.streamsupport;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -37,8 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ResultTest {
-    private static final String specialLoggerInfo = "oakpal_special.info";
-    private static final String specialLoggerError = "oakpal_special.error";
+    private static final String specialLoggerError = "special.error";
 
     @Test
     public void testIsSuccess() {
@@ -108,6 +109,30 @@ public class ResultTest {
         assertNotEquals("success gets non-default",
                 defaultValue, Result.success("success").getOrElse(() -> defaultValue));
         assertEquals(defaultValue, Result.failure("failure").getOrElse(() -> defaultValue));
+    }
+
+    @Test
+    void getOrThrow_success() {
+        assertEquals("success", Result.success("success").getOrThrow());
+        assertEquals("success", Result.success("success").getOrThrow(RuntimeException.class));
+    }
+
+    @Test
+    void getOrThrow_rethrow() {
+        final Result<String> result = Result.failure("failure", new SignatureCause());
+        assertThrows(Result.RethrownFailureException.class, result::getOrThrow);
+    }
+
+    @Test
+    void getOrThrow_throwCause() {
+        final Result<String> result = Result.failure("failure", new SignatureCause());
+        assertThrows(SignatureCause.class, () -> result.getOrThrow(SignatureCause.class));
+    }
+
+    @Test
+    void getOrThrow_throwCause_notMatched() {
+        final Result<String> result = Result.failure("failure", new SignatureCause());
+        assertThrows(Result.RethrownFailureException.class, () -> result.getOrThrow(IOException.class));
     }
 
     @Test
@@ -188,7 +213,6 @@ public class ResultTest {
         assertEquals(original, original.stream()
                 .collect(new Result.RestreamLogCollector<>(LoggerFactory.getLogger(specialLoggerError), "withError"))
                 .collect(Collectors.toSet()));
-
     }
 
     @Test
@@ -210,5 +234,20 @@ public class ResultTest {
         assertEquals(original, StreamSupport.stream(original.spliterator(), true)
                 .collect(new Result.RestreamLogCollector<>(LoggerFactory.getLogger(specialLoggerError), "withError"))
                 .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void equalsHashCodeToString() {
+        final Result<String> success = Result.success("success");
+        final Result<String> failure = Result.failure("failure");
+        assertEquals("Success(success)", success.toString());
+        assertEquals(String.format("Failure(%s)", Objects.requireNonNull(failure.getError().orElse(null)).getMessage()),
+                failure.toString());
+        assertEquals(Objects.hash("success"), success.hashCode());
+        assertEquals(Objects.hash(Objects.requireNonNull(failure.getError().orElse(null))),
+                failure.hashCode());
+        assertNotEquals(success, failure);
+        assertEquals(Result.success("success"), success);
+        assertEquals(Result.failure(Objects.requireNonNull(failure.getError().orElse(null))), failure);
     }
 }
